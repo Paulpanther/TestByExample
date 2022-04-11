@@ -33,3 +33,6 @@ class Bar {
 1. For generating the code that calls the examples [KSP](https://kotlinlang.org/docs/ksp-overview.html) is used.
 2. The [JUnit Platform Launcher API](https://junit.org/junit5/docs/current/user-guide/#launcher-api) is used to run the generated code.
 3. The Intellij Plugin provides syntax highlighting for the example code and an action to run the example.
+
+## Usefull Links
+- https://blogs.oracle.com/javamagazine/post/junit-build-custom-test-engines-java
