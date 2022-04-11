@@ -34,5 +34,5 @@ class Bar {
 2. The [JUnit Platform Launcher API](https://junit.org/junit5/docs/current/user-guide/#launcher-api) is used to run the generated code.
 3. The Intellij Plugin provides syntax highlighting for the example code and an action to run the example.
 
-## Usefull Links
+## Useful Links
 - https://blogs.oracle.com/javamagazine/post/junit-build-custom-test-engines-java
