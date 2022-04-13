@@ -1,6 +1,8 @@
 package com.testbyexample
 
-class HelloWorld {
+class HelloWorld(
+    val i: Int = 0
+) {
 
     @Example(
         self = "HelloWorld()",
@@ -10,8 +12,11 @@ class HelloWorld {
         return "$inp 42"
     }
 
-}
-
-fun main() {
-    println("Hey")
+    @Example(
+        self = "HelloWorld(42)",
+        params = [],
+        result = "true")
+    fun bar(): Boolean {
+        return i == 42
+    }
 }
