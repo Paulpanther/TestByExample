@@ -39,7 +39,7 @@ class ExampleProcessor(
 
                 out += "package $packageName\n\n"
                 out += "class $fileName {\n"
-                out += "  fun runExample(): Boolean {\n"
+                out += "  fun runExample(): Pair<Any, Any> {\n"
                 out += "    val self = ${example.self}\n"
                 out += "    val result = ${example.result}\n"
                 out += "    val actualResult = self.${functionName}(\n"
@@ -47,7 +47,7 @@ class ExampleProcessor(
                     out += "      $param,\n"
                 }
                 out += "    )\n"
-                out += "    return result == actualResult\n"
+                out += "    return result to actualResult\n"
                 out += "  }\n"
                 out += "}\n"
 

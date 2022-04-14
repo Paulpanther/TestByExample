@@ -17,6 +17,6 @@ class HelloWorld(
         params = [],
         result = "true")
     fun bar(): Boolean {
-        return i == 42
+        return i == 41
     }
 }
