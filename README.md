@@ -1,5 +1,6 @@
 # TestByExample
-Write Tests as Examples on the Method-under-test
+Write Tests as Examples on the Method-Under-Test (inspired by [Babylonian Programming](https://programming-journal.org/2019/3/9/)).  
+For Syntax Highlighting and Run Actions install [this Intellij Plugin](https://github.com/Paulpanther/TestByExample-Intellij)
 
 ## Progress
 **THIS PROJECT IS STILL WIP**
