@@ -5,7 +5,7 @@ Write Tests as Examples on the Method-under-test
 **THIS PROJECT IS STILL WIP**
 - [x] Example Call Code Generation
 - [x] Run the generated code with JUnit
-- [ ] Run Action with Intellij Plugin
+- [x] Run Action with Intellij Plugin
 - [ ] Syntax Highlighting in Intellij Plugin
 
 ## Goal
