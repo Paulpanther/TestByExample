@@ -21,4 +21,5 @@ rootProject.name = "TestByExample"
 include("lib")
 include("processor")
 include("annotations")
+include("attach")
 
