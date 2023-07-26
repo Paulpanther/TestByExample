@@ -3,6 +3,8 @@ package com.testbyexample
 import java.io.File
 
 class AttachConnector {
+    private val i = 4
+
     init {
         startAttach()
     }
@@ -13,8 +15,10 @@ class AttachConnector {
         val jvm = ProcessHandle.current().info().command().orElse(null) ?: return
         val process = ProcessBuilder(jvm, "-jar", jar.absolutePath, currentProcess.pid().toString()).start()
         process.waitFor()
+        ProbeTest().foo("Hey")
     }
 }
+
 
 fun main() {
     AttachConnector()
