@@ -30,12 +30,16 @@ class ProbeTransformer(
 
         val probeCollectorClazz = classes.get("com.testbyexample.ProbeCollector")
         val probeCollectorIndex = clazzFile.constPool.addClassInfo(probeCollectorClazz)
-        val addProbeMethodIndex = clazzFile.constPool.addMethodrefInfo(probeCollectorIndex, "addProbe", "(Ljava/lang/String;I)Ljava/lang/String;")
+        val addProbeMethodIndex = clazzFile.constPool.addMethodrefInfo(
+            probeCollectorIndex,
+            "addProbe",
+            "(Ljava/lang/String;I)Ljava/lang/String;"
+        )
 
         while (iterator.hasNext()) {
             val index = iterator.next()
             val op = iterator.byteAt(index)
-            iterator.printAt(clazzFile, index)
+//            iterator.printAt(clazzFile, index)
 
             if (op == Opcode.INVOKEVIRTUAL) {
                 val arg = iterator.s16bitAt(index + 1)
@@ -43,17 +47,22 @@ class ProbeTransformer(
                 val isVoid = type.endsWith(")V")
 
                 if (!isVoid) {
-                    iterator.insert(index + 3, byteArrayOf(
-//                        Opcode.BIPUSH.toByte(), 42.toByte(),
-                        Opcode.INVOKESTATIC.toByte(),
-                        addProbeMethodIndex.ushr(8).toByte(),
-                        addProbeMethodIndex.toByte()
-                    ))
-                    iterator.printAt(clazzFile, index + 3)
+                    iterator.insert(
+                        index + 3, byteArrayOf(
+                            Opcode.BIPUSH.toByte(),
+                            11.toByte(),
+                            Opcode.INVOKESTATIC.toByte(),
+                            addProbeMethodIndex.ushr(8).toByte(),
+                            addProbeMethodIndex.toByte()
+                        )
+                    )
+//                    iterator.printAt(clazzFile, index + 3)
 //                    iterator.printAt(clazzFile, index + 5)
                 }
             }
         }
+
+        method.codeAttribute.computeMaxStack()
 
         return clazz.toBytecode()
     }

@@ -1,122 +1,84 @@
 package com.testbyexample
 
-import com.google.devtools.ksp.closestClassDeclaration
-import com.google.devtools.ksp.processing.*
-import com.google.devtools.ksp.symbol.KSAnnotated
-import com.google.devtools.ksp.symbol.KSAnnotation
-import com.google.devtools.ksp.symbol.KSFunctionDeclaration
-import com.google.devtools.ksp.symbol.KSValueParameter
-import com.google.devtools.ksp.validate
-import java.io.OutputStream
+import java.io.Writer
+import javax.annotation.processing.*
+import javax.lang.model.SourceVersion
+import javax.lang.model.element.Element
+import javax.lang.model.element.ElementKind
+import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.QualifiedNameable
+import javax.lang.model.element.TypeElement
+import javax.lang.model.type.TypeMirror
 
-class ExampleProcessor(
-    private val codeGenerator: CodeGenerator,
-    private val logger: KSPLogger,
-    private val options: Map<String, String>
-): SymbolProcessor {
+private data class Signature(
+    val packageE: QualifiedNameable,
+    val clazz: QualifiedNameable,
+    val method: ExecutableElement,
+    val params: List<TypeMirror>
+) {
+    companion object {
+        fun from(element: Element): Signature? {
+            if (element.kind != ElementKind.METHOD) return null
+            val method = element as ExecutableElement
 
-    override fun process(resolver: Resolver): List<KSAnnotated> {
-        val annotationName = Example::class.qualifiedName ?: return listOf()
-        val symbols = resolver
-            .getSymbolsWithAnnotation(annotationName)
-            .filterIsInstance<KSFunctionDeclaration>()
+            val clazz = method.enclosingElement as QualifiedNameable
+            if (clazz.kind != ElementKind.CLASS) return null
 
-        generateLookupFile(resolver, symbols)
+            val packageE = clazz.enclosingElement as QualifiedNameable
+            if (packageE.kind != ElementKind.PACKAGE) return null
 
-        for (symbol in symbols) {
-            val packageName = symbol.packageName.asString()
-            val examples = symbol.annotations.mapNotNull { ksToExample(it) }
-            val name = (symbol.qualifiedName?.asString() ?: symbol.simpleName.asString()).replace(".", "")
-            val functionName = symbol.simpleName.asString()
+            val params = method.parameters.map { it.asType() }
+            return Signature(packageE, clazz, method, params)
+        }
+    }
+
+    override fun toString(): String {
+        return "$clazz#$method(${params.joinToString(",")})"
+    }
+}
+
+@SupportedAnnotationTypes("com.testbyexample.Example")
+@SupportedSourceVersion(SourceVersion.RELEASE_11)
+open class ExampleProcessor: AbstractProcessor() {
+    override fun process(annotations: MutableSet<out TypeElement>?, roundEnv: RoundEnvironment?): Boolean {
+        if (annotations?.isNotEmpty() != true) return true
+        val elements = mutableListOf<Element>()
+        for (annotation in annotations) {
+            elements += (roundEnv ?: return false).getElementsAnnotatedWith(annotation)
+        }
+        val signatures = elements.mapNotNull { Signature.from(it) }
+
+        val file = processingEnv.filer.createSourceFile("com.testbyexample.ExampleLookup")
+        val out = file.openWriter()
+        out += "package com.testbyexample;\n\n"
+        out += "import java.util.List;\n\n"
+        out += "public class ExampleLookup {\n"
+        out += "  public List<List<String>> methodsUnderTest() {\n"
+        out += "    return List.of(${signatures.joinToString()});\n"
+        out += "  }\n"
+        out += "}\n"
+        out.close()
+
+        for (signature in signatures) {
+            val examples = signature.method.getAnnotationsByType(Example::class.java)
 
             for ((i, example) in examples.withIndex()) {
-                val fileName = "$name$i"
+                val fileName = signature.toString()
 
-                val out = codeGenerator.createNewFile(
-                    Dependencies(false, *resolver.getAllFiles().toList().toTypedArray()),
-                    packageName,
-                    fileName)
-
-                out += "package $packageName\n\n"
-                out += "class $fileName {\n"
-                out += "  fun runExample(): Pair<Any, Any> {\n"
-                out += "    val self = ${example.self}\n"
-                out += "    val result = ${example.result}\n"
-                out += "    val actualResult = self.${functionName}(\n"
-                for (param in example.params) {
-                    out += "      $param,\n"
-                }
-                out += "    )\n"
-                out += "    return result to actualResult\n"
-                out += "  }\n"
-                out += "}\n"
-
+                val file = processingEnv.filer.createSourceFile(fileName)
+                val out = file.openWriter()
+                out += "package ${signature.packageE};\n\n"
                 out.close()
             }
         }
-        return symbols.filterNot { it.validate() }.toList()
+
+        return true
     }
 
-    private fun generateLookupFile(resolver: Resolver, methods: Sequence<KSFunctionDeclaration>) {
-        // TODO refactor into txt file
-        val className = "ExampleLookup"
-        val packageName = "com.testbyexample"
-
-        val out = try {
-            codeGenerator.createNewFile(
-                Dependencies(false, *resolver.getAllFiles().toList().toTypedArray()),
-                packageName,
-                className
-            )
-        } catch (e: FileAlreadyExistsException) {
-            return
-        }
-
-        val methodSignatures = methods.mapNotNull { methodToSignature(it) }
-
-        out += "package $packageName\n\n"
-        out += "class $className {\n"
-        out += "  fun methodsUnderTest(): List<List<String>> {\n"
-        out += "    return listOf(\n"
-        for (signature in methodSignatures) {
-           out += "      listOf(${signature.joinToString(", ") { "\"$it\"" }}),\n"
-        }
-        out += "    )\n"
-        out += "  }\n"
-        out += "}\n"
-
-        out.close()
+    private fun toQualified(clazz: QualifiedNameable, method: ExecutableElement): String {
+        return "${clazz.qualifiedName}#${method.simpleName}(${method.parameters.joinToString(",") { it.asType().toString() }})"
     }
 
-    private fun methodToSignature(method: KSFunctionDeclaration): List<String>? {
-        val clazz = method.closestClassDeclaration() ?: return null
-        val clazzSignature = clazz.qualifiedName?.asString() ?: return null
-        val methodName = method.simpleName.asString()
-        val params = method.parameters.map { parameterToSignature(it) ?: return null }
-        return listOf(clazzSignature, methodName, *params.toTypedArray())
-    }
-
-    private fun parameterToSignature(param: KSValueParameter): String? {
-        val type = param.type.resolve().declaration.qualifiedName?.asString() ?: return null
-        return type.replace("kotlin.", "java.lang.")
-    }
-
-    private fun ksToExample(annotation: KSAnnotation): Example? {
-        val params = annotation.arguments.map {
-            val name = it.name?.asString() ?: return null
-            val value = it.value
-            name to value
-        }.toMap()
-        val selfP = params["self"] as? String ?: return null
-        val paramsP = params["params"] as? ArrayList<*> ?: return null
-        val resultP = params["result"] as? String ?: return null
-        val saveParamsP = paramsP.map { it as? String ?: return null }.toTypedArray()
-
-        return Example(selfP, saveParamsP, resultP)
-    }
-
-    private operator fun OutputStream.plusAssign(str: String) {
-        this.write(str.toByteArray())
-    }
+    operator fun Writer.plusAssign(text: String) = this.write(text)
 }
 

@@ -5,7 +5,9 @@ import org.junit.platform.engine.support.descriptor.EngineDescriptor
 import java.lang.reflect.Method
 
 class TBEJunitEngine: TestEngine {
-    private val attach = AttachConnector()
+    init {
+        AttachConnector()
+    }
 
     override fun getId() = "testbyexample"
 
