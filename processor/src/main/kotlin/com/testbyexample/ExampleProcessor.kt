@@ -1,13 +1,12 @@
 package com.testbyexample
 
-import java.io.Writer
+import com.squareup.javapoet.JavaFile
+import com.squareup.javapoet.MethodSpec
+import com.squareup.javapoet.ParameterizedTypeName
+import com.squareup.javapoet.TypeSpec
 import javax.annotation.processing.*
 import javax.lang.model.SourceVersion
-import javax.lang.model.element.Element
-import javax.lang.model.element.ElementKind
-import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.QualifiedNameable
-import javax.lang.model.element.TypeElement
+import javax.lang.model.element.*
 import javax.lang.model.type.TypeMirror
 
 private data class Signature(
@@ -48,37 +47,66 @@ open class ExampleProcessor: AbstractProcessor() {
         }
         val signatures = elements.mapNotNull { Signature.from(it) }
 
-        val file = processingEnv.filer.createSourceFile("com.testbyexample.ExampleLookup")
-        val out = file.openWriter()
-        out += "package com.testbyexample;\n\n"
-        out += "import java.util.List;\n\n"
-        out += "public class ExampleLookup {\n"
-        out += "  public List<List<String>> methodsUnderTest() {\n"
-        out += "    return List.of(${signatures.joinToString()});\n"
-        out += "  }\n"
-        out += "}\n"
-        out.close()
+        val methodsUnderTest = MethodSpec.methodBuilder("methodsUnderTest")
+            .addModifiers(Modifier.PUBLIC)
+            .returns(ParameterizedTypeName.get(List::class.java, String::class.java))
+            .addStatement("return \$T.of(\$S)", List::class.java, signatures.joinToString())
+            .build()
+        val exampleLookup = TypeSpec.classBuilder("ExampleLookup")
+            .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+            .addMethod(methodsUnderTest)
+            .build()
+        val exampleLookupFile = JavaFile.builder("com.testbyexample", exampleLookup)
+            .build()
+        processingEnv.filer.createFile(exampleLookupFile)
 
-        for (signature in signatures) {
-            val examples = signature.method.getAnnotationsByType(Example::class.java)
+        val classes = signatures.groupBy { it.clazz }
+        for ((clazz, clazzSignatures) in classes) {
+            val clazzPackage = (clazz.enclosingElement as? QualifiedNameable)
+            if (clazzPackage == null || clazzPackage.kind != ElementKind.PACKAGE) continue
 
-            for ((i, example) in examples.withIndex()) {
-                val fileName = signature.toString()
+            val methods = mutableListOf<MethodSpec>()
+            for (signature in clazzSignatures) {
+                val examples = signature.method.getAnnotationsByType(Example::class.java)
+                val methodName = methodAndParamsToString(signature)
 
-                val file = processingEnv.filer.createSourceFile(fileName)
-                val out = file.openWriter()
-                out += "package ${signature.packageE};\n\n"
-                out.close()
+                for ((i, example) in examples.withIndex()) {
+                    val selfCall = "(${example.self}).${signature.method.simpleName}(${example.params.joinToString(", ")})"
+                    methods += MethodSpec.methodBuilder("${methodName}___$i")
+                        .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                        .returns(ParameterizedTypeName.get(Pair::class.java, Object::class.java, Object::class.java))
+                        .addStatement("return new \$T<>((${example.result}), ($selfCall))", Pair::class.java)
+                        .build()
+                }
             }
+
+            val exampleClazz = TypeSpec.classBuilder("___" + clazz.simpleName.toString())
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .addMethods(methods)
+                .build()
+            val exampleFile = JavaFile.builder("com.testbyexample.examples.${clazzPackage.qualifiedName}", exampleClazz)
+                .build()
+            processingEnv.filer.createFile(exampleFile, listOf(clazz.qualifiedName.toString()))
         }
 
         return true
     }
 
-    private fun toQualified(clazz: QualifiedNameable, method: ExecutableElement): String {
-        return "${clazz.qualifiedName}#${method.simpleName}(${method.parameters.joinToString(",") { it.asType().toString() }})"
+    private fun Filer.createFile(obj: JavaFile, imports: List<String> = listOf()) {
+        val file = createSourceFile("${obj.packageName}.${obj.typeSpec.name}")
+
+        // Hacky because JavaPoet is mean to me
+        val source = obj.toString()
+        val modifiedSource = source.split("\n").joinToString("\n") {
+            if (it.startsWith("package") && imports.isNotEmpty()) {
+                it + "\n" + imports.joinToString("\n") { import -> "import $import;" }
+            } else {
+                it
+            }
+        }
+
+        file.openWriter().use { it.write(modifiedSource) }
     }
 
-    operator fun Writer.plusAssign(text: String) = this.write(text)
 }
 

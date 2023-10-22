@@ -22,4 +22,5 @@ include("lib")
 include("processor")
 include("annotations")
 include("attach")
+include("common")
 
